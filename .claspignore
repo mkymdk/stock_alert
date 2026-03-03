@@ -1,0 +1,6 @@
+# Ignore everything by default
+**
+
+# Allow GAS source files and manifest
+!src/**/*.ts
+!appsscript.json

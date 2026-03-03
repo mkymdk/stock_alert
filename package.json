@@ -1,0 +1,16 @@
+{
+  "name": "stock-alert",
+  "version": "1.0.0",
+  "description": "GAS-based stock drop alert system with Slack notification",
+  "scripts": {
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "login": "clasp login",
+    "open": "clasp open"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "@types/google-apps-script": "^1.0.83",
+    "typescript": "^5.0.0"
+  }
+}

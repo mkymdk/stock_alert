@@ -1,0 +1,10 @@
+# clasp project binding and auth — generated locally, not shared
+.clasp.json
+.clasprc.json
+
+# Node modules
+node_modules/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
