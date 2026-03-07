@@ -1,6 +1,7 @@
 # Ignore everything by default
 **
 
-# Allow GAS source files and manifest
-!src/**/*.ts
+# rootDir is src/ — allow all .ts files and manifest within it
+!*.ts
 !appsscript.json
+!providers/*.ts
