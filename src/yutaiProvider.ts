@@ -1,69 +1,43 @@
 /**
- * yutaiProvider.ts — 株主優待銘柄リストの取得
+ * yutaiProvider.ts — 株主優待銘柄のスクリーニング取得
  *
- * minkabu.jp の株主優待ページをスクレイピングして
- * 東証銘柄コード（4桁）の配列を返す。
+ * minkabu.jp の株主優待検索 JSON API から、配当・PER フィルタ済みの
+ * ScreenedStock[] を直接返す。
  *
- * 結果は Script Properties にキャッシュされ、YUTAI_CACHE_TTL_MS 経過後に
- * 再スクレイピングする（週次トリガー時は通常キャッシュが有効）。
+ * URL パラメータでサーバー側フィルタリングするため、Yahoo Finance v7 は不要。
+ * キャッシュなし — 毎回最新データを取得する（週次実行のため許容範囲内）。
  */
 
-/** 株主優待銘柄一覧の JSON API（Accept: application/json ヘッダーが必要） */
-const YUTAI_SEARCH_URL      = 'https://minkabu.jp/stock/search?yutai_exist=1&page=';
-const YUTAI_CACHE_KEY       = 'YUTAI_SYMBOLS';
-const YUTAI_DETAIL_MAX_LEN  = 120; // Slack メッセージ内の優待内容の最大文字数
+/** minkabu 株主優待 + 配当・PER フィルタ済み銘柄検索 JSON API */
+const YUTAI_SEARCH_URL = 'https://minkabu.jp/stock/search';
+
+const YUTAI_DETAIL_MAX_LEN = 120; // Slack メッセージ内の優待内容の最大文字数
 
 /**
- * 株主優待を実施している東証銘柄コードの配列を返す。
- * キャッシュが有効な場合はキャッシュから返す。
+ * 株主優待あり・配当 >= DIVIDEND_YIELD_MIN_PCT・PER <= PER_MAX の条件を満たす
+ * 銘柄一覧を minkabu API から取得して ScreenedStock[] として返す。
  */
-function fetchYutaiSymbols(): string[] {
-  const props = PropertiesService.getScriptProperties();
-  const raw   = props.getProperty(YUTAI_CACHE_KEY);
-
-  if (raw) {
-    try {
-      const cached: { ts: number; codes: string } = JSON.parse(raw);
-      if (Date.now() - cached.ts < YUTAI_CACHE_TTL_MS) {
-        const symbols = cached.codes.split(',');
-        Logger.log(`[yutai] キャッシュ使用: ${symbols.length}銘柄`);
-        return symbols;
-      }
-    } catch (_) {
-      // キャッシュが壊れていれば再スクレイピング
-    }
-  }
-
-  Logger.log('[yutai] キャッシュ期限切れ — スクレイピング開始');
-  const symbols = scrapeYutaiSymbols();
-
-  if (symbols.length > 0) {
-    try {
-      props.setProperty(
-        YUTAI_CACHE_KEY,
-        JSON.stringify({ ts: Date.now(), codes: symbols.join(',') }),
-      );
-      Logger.log(`[yutai] キャッシュ更新: ${symbols.length}銘柄`);
-    } catch (e) {
-      Logger.log(`[yutai] キャッシュ保存失敗: ${(e as Error).message}`);
-    }
-  }
-
-  return symbols;
-}
-
-/**
- * minkabu の株主優待銘柄検索 JSON API から全銘柄コードを取得する。
- * 1ページ50件。初回レスポンスの pagination.totalPages まで自動的にループする。
- */
-function scrapeYutaiSymbols(): string[] {
-  const symbols: string[] = [];
+function fetchFilteredStocks(): ScreenedStock[] {
+  const stocks: ScreenedStock[] = [];
   let totalPages = 1;
 
   for (let page = 1; page <= Math.min(totalPages, YUTAI_MAX_PAGES); page++) {
-    const url = `${YUTAI_SEARCH_URL}${page}`;
+    const url =
+      `${YUTAI_SEARCH_URL}?yutai_exist=1` +
+      `&dividend_yield[0]=${DIVIDEND_YIELD_MIN_PCT}&dividend_yield[1]=max` +
+      `&per[0]=min&per[1]=${PER_MAX}` +
+      `&page=${page}`;
 
-    let data: { items: Array<{ financialItemCode?: string }>; pagination: { totalPages: number } };
+    let data: {
+      items: Array<{
+        financialItemCode?: string;
+        financialItemName?: string;
+        per?: number | null;
+        dividendYield?: number | null;
+      }>;
+      pagination: { totalPages: number; totalCount: number };
+    };
+
     try {
       const resp = UrlFetchApp.fetch(url, {
         muteHttpExceptions: true,
@@ -85,23 +59,42 @@ function scrapeYutaiSymbols(): string[] {
       break;
     }
 
-    // 初回レスポンスで総ページ数を確定
     if (page === 1) {
       totalPages = data.pagination?.totalPages ?? 1;
-      Logger.log(`[yutai] 総ページ数: ${totalPages} (推定 ${totalPages * 50} 銘柄)`);
+      Logger.log(
+        `[yutai] 対象銘柄: ${data.pagination?.totalCount ?? '?'}件` +
+        ` / ${totalPages}ページ`,
+      );
     }
 
     const items = data.items ?? [];
     for (const item of items) {
-      if (item.financialItemCode) symbols.push(item.financialItemCode);
+      const code = item.financialItemCode;
+      if (!code) continue;
+
+      const per              = item.per ?? null;
+      const dividendYieldPct = item.dividendYield ?? null;
+
+      // サーバー側フィルタが効いているはずだが、念のためクライアント側でも確認
+      if (per === null || dividendYieldPct === null) continue;
+      if (dividendYieldPct < DIVIDEND_YIELD_MIN_PCT) continue;
+      if (per > PER_MAX) continue;
+
+      stocks.push({
+        symbol:          code,
+        name:            item.financialItemName ?? code,
+        market:          'TSE',
+        per,
+        dividendYieldPct,
+      });
     }
 
-    Logger.log(`[yutai] page ${page}/${totalPages}: +${items.length}銘柄 (累計 ${symbols.length})`);
+    Logger.log(`[yutai] page ${page}/${totalPages}: +${items.length}件 (累計 ${stocks.length})`);
     Utilities.sleep(500);
   }
 
-  Logger.log(`[yutai] 取得完了: ${symbols.length}銘柄`);
-  return symbols;
+  Logger.log(`[yutai] スクリーニング完了: ${stocks.length}銘柄`);
+  return stocks;
 }
 
 /**

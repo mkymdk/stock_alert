@@ -26,16 +26,6 @@ interface ScreenedStock extends StockConfig {
   per: number;
 }
 
-/** Fundamental metrics from the Yahoo Finance v7 batch quote API */
-interface FundamentalData {
-  /** Company name (longName or shortName) */
-  name: string;
-  /** Trailing P/E ratio, or null if unavailable */
-  per: number | null;
-  /** Trailing annual dividend yield (%), or null if unavailable */
-  dividendYieldPct: number | null;
-}
-
 /** Normalised price data returned by any StockProvider */
 interface PriceData {
   /** Most recent closing price */

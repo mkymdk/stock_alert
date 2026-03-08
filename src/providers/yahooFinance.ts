@@ -1,8 +1,7 @@
 /**
- * providers/yahooFinance.ts — Yahoo Finance v8 + v7 implementation
+ * providers/yahooFinance.ts — Yahoo Finance v8 chart implementation
  *
- * fetchPriceData          — v8/finance/chart  (5年・週足レンジ)
- * fetchBatchFundamentals  — v7/finance/quote  (最大 BATCH_QUOTE_SIZE 銘柄/リクエスト)
+ * fetchPriceData — v8/finance/chart (5年・週足レンジ)
  *
  * API キー不要。
  */
@@ -30,27 +29,8 @@ interface YahooChartResponse {
   };
 }
 
-/** Yahoo Finance v7 quote 1銘柄分のレスポンス */
-interface YahooQuoteItem {
-  symbol: string;
-  shortName?: string;
-  longName?: string;
-  trailingPE?: number;
-  trailingAnnualDividendYield?: number;
-}
-
-/** Yahoo Finance v7 quote レスポンス全体 */
-interface YahooQuoteResponse {
-  quoteResponse: {
-    result: YahooQuoteItem[] | null;
-    error: unknown;
-  };
-}
-
 class YahooFinanceProvider implements StockProvider {
   readonly supportedMarkets: ReadonlyArray<Market> = ['TSE', 'NYSE', 'NASDAQ'];
-
-  // ── 株価データ（過去5年・週足）──────────────────────────────────────────
 
   fetchPriceData(stock: StockConfig, _lookbackDays: number): PriceData | null {
     const ticker = `${stock.symbol}${MARKET_SUFFIX[stock.market]}`;
@@ -137,55 +117,5 @@ class YahooFinanceProvider implements StockProvider {
       highDate:   windowHighDate,
       dropPct:    ((currentPrice - windowHigh) / windowHigh) * 100,
     };
-  }
-
-  // ── バッチ・ファンダメンタルズ（PER・配当利回り）──────────────────────
-
-  fetchBatchFundamentals(symbols: string[], market: Market): Map<string, FundamentalData> {
-    const result = new Map<string, FundamentalData>();
-    const suffix = MARKET_SUFFIX[market];
-
-    for (let i = 0; i < symbols.length; i += BATCH_QUOTE_SIZE) {
-      const chunk   = symbols.slice(i, i + BATCH_QUOTE_SIZE);
-      const tickers = chunk.map(s => `${s}${suffix}`).join(',');
-      const url     = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(tickers)}`;
-
-      try {
-        const httpResponse = UrlFetchApp.fetch(url, {
-          method: 'get',
-          muteHttpExceptions: true,
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        });
-
-        if (httpResponse.getResponseCode() !== 200) {
-          Logger.log(`[yahoo] バッチ取得 HTTP ${httpResponse.getResponseCode()} (${i}〜${i + chunk.length - 1})`);
-          continue;
-        }
-
-        const data   = JSON.parse(httpResponse.getContentText()) as YahooQuoteResponse;
-        const quotes = data.quoteResponse?.result ?? [];
-
-        for (const q of quotes) {
-          // ティッカーからサフィックスを除去して銘柄コードを復元
-          const code = suffix.length > 0 && q.symbol.endsWith(suffix)
-            ? q.symbol.slice(0, -suffix.length)
-            : q.symbol;
-
-          result.set(code, {
-            name: q.longName ?? q.shortName ?? code,
-            per:  q.trailingPE ?? null,
-            dividendYieldPct: q.trailingAnnualDividendYield != null
-              ? q.trailingAnnualDividendYield * 100
-              : null,
-          });
-        }
-      } catch (e) {
-        Logger.log(`[yahoo] バッチ取得エラー: ${(e as Error).message}`);
-      }
-
-      Utilities.sleep(300);
-    }
-
-    return result;
   }
 }
