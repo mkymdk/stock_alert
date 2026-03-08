@@ -26,5 +26,9 @@ const YUTAI_MAX_PAGES = 30;
 /** Yahoo Finance バッチクォートの1リクエストあたり銘柄数 */
 const BATCH_QUOTE_SIZE = 50;
 
-/** 株主優待リストのキャッシュ有効期間 (ms) */
-const YUTAI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7日
+/**
+ * 株主優待リストのキャッシュ有効期間 (ms)
+ * 優待の新設・廃止は年数回程度のため、年1回更新で十分。
+ * 手動でリフレッシュする場合は GAS エディタから refreshYutaiCache() を実行。
+ */
+const YUTAI_CACHE_TTL_MS = 365 * 24 * 60 * 60 * 1000; // 1年

@@ -3,9 +3,10 @@
  *
  * Functions exposed to the GAS runtime:
  *
- *   checkAllStocks()  — Main entry point, called by the weekly trigger.
- *   setupTrigger()    — Run once after first deployment to register the trigger.
- *   manualRun()       — Convenience wrapper for manual testing.
+ *   checkAllStocks()    — Main entry point, called by the weekly trigger.
+ *   setupTrigger()      — Run once after first deployment to register the trigger.
+ *   manualRun()         — Convenience wrapper for manual testing.
+ *   refreshYutaiCache() — Manually force-refresh the 株主優待 symbol list cache.
  */
 
 /**
@@ -69,4 +70,18 @@ function setupTrigger(): void {
 function manualRun(): void {
   Logger.log('[main] Manual run triggered');
   checkAllStocks();
+}
+
+/**
+ * 株主優待リストのキャッシュを強制再取得する。
+ * 通常は年1回自動更新されるが、優待新設・廃止が多い時期（3月・9月頃）などに
+ * 手動で実行してキャッシュを最新化できる。
+ *
+ * GAS Editor → select "refreshYutaiCache" → click Run
+ */
+function refreshYutaiCache(): void {
+  PropertiesService.getScriptProperties().deleteProperty(YUTAI_CACHE_KEY);
+  Logger.log('[main] 株主優待キャッシュを削除 — 再スクレイピング開始');
+  const symbols = fetchYutaiSymbols();
+  Logger.log(`[main] 完了: ${symbols.length}銘柄をキャッシュしました`);
 }
