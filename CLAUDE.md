@@ -25,10 +25,7 @@ There is no local build step or test runner — TypeScript is transpiled by clas
 
 ### Auto-deploy (normal workflow)
 
-`git push` triggers two mechanisms — either is sufficient:
-
-1. **GitHub Actions** (`.github/workflows/deploy.yml`) — runs only when `src/**` changes; skips gracefully if Secrets are not configured. Requires `CLASPRC` and `CLASP_JSON` repository secrets.
-2. **git post-push hook** (`.git/hooks/post-push`) — local hook, runs only when `src/` changes. Recreate with `/setup-gas-hook` skill if lost after Codespaces rebuild.
+**GitHub Actions** (`.github/workflows/deploy.yml`) — `src/**` が変更された `main` への push 時に自動実行。Secrets 未設定時はスキップして正常終了。Requires `CLASPRC` and `CLASP_JSON` repository secrets.
 
 ### Manual push
 
