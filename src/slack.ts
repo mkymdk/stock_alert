@@ -31,7 +31,8 @@ function sendSlackAlert(stock: ScreenedStock, data: PriceData): boolean {
     return false;
   }
 
-  const message = buildMessage(stock, data);
+  const yutaiDetail = fetchYutaiDetail(stock.symbol);
+  const message = buildMessage(stock, data, yutaiDetail);
 
   let response: GoogleAppsScript.URL_Fetch.HTTPResponse;
   try {
@@ -56,19 +57,18 @@ function sendSlackAlert(stock: ScreenedStock, data: PriceData): boolean {
   return true;
 }
 
-function buildMessage(stock: ScreenedStock, data: PriceData): string {
-  const marketLabel = MARKET_LABEL[stock.market];
-  const currentStr  = formatPrice(data.currentPrice, stock.market);
-  const highStr     = formatPrice(data.highPrice,    stock.market);
+function buildMessage(stock: ScreenedStock, data: PriceData, yutaiDetail: string | null): string {
+  const marketLabel  = MARKET_LABEL[stock.market];
+  const currentStr   = formatPrice(data.currentPrice, stock.market);
+  const conditions   = `配当${DIVIDEND_YIELD_MIN_PCT}%以上 / PER${PER_MAX}倍以下 / 株主優待あり / 5年高値比-${DROP_THRESHOLD_PCT}%以上`;
+  const yutaiStr     = yutaiDetail ?? '株主優待あり（詳細は企業サイトをご確認ください）';
 
   return [
-    ':rotating_light: *株価下落アラート*',
+    `:rotating_light: *株価下落アラート*（${conditions}）`,
     `銘柄: ${stock.name} (${stock.symbol}) [${marketLabel}]`,
-    `現在値: ${currentStr}`,
-    `過去5年高値: ${highStr} (${data.highDate} 達成)`,
-    `下落率: ${data.dropPct.toFixed(1)}%`,
+    `現在値: ${currentStr}  |  下落率: ${data.dropPct.toFixed(1)}%`,
     `配当利回り: ${stock.dividendYieldPct.toFixed(2)}%  |  PER: ${stock.per.toFixed(1)}倍`,
-    `（スクリーニング条件: 配当${DIVIDEND_YIELD_MIN_PCT}%以上 / PER${PER_MAX}倍以下 / 株主優待あり / 高値から${DROP_THRESHOLD_PCT}%以上の下落）`,
+    `株主優待: ${yutaiStr}`,
   ].join('\n');
 }
 

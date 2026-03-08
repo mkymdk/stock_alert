@@ -8,8 +8,9 @@
  * 再スクレイピングする（週次トリガー時は通常キャッシュが有効）。
  */
 
-const YUTAI_BASE_URL = 'https://minkabu.jp/yutai';
-const YUTAI_CACHE_KEY = 'YUTAI_SYMBOLS';
+const YUTAI_BASE_URL        = 'https://minkabu.jp/yutai';
+const YUTAI_CACHE_KEY       = 'YUTAI_SYMBOLS';
+const YUTAI_DETAIL_MAX_LEN  = 120; // Slack メッセージ内の優待内容の最大文字数
 
 /**
  * 株主優待を実施している東証銘柄コードの配列を返す。
@@ -96,4 +97,50 @@ function scrapeYutaiSymbols(): string[] {
 
   Logger.log(`[yutai] スクレイピング完了: ${symbolSet.size}銘柄`);
   return Array.from(symbolSet);
+}
+
+/**
+ * 指定銘柄の株主優待内容を minkabu からスクレイピングして返す。
+ * アラート送信直前に呼び出すため、対象は通知銘柄のみ（件数は少ない）。
+ * 取得できない場合は null を返す（呼び出し元で「株主優待あり」等にフォールバック）。
+ */
+function fetchYutaiDetail(symbol: string): string | null {
+  const url = `https://minkabu.jp/stock/${symbol}/yutai`;
+  let html: string;
+
+  try {
+    const resp = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    html = resp.getContentText();
+  } catch (e) {
+    Logger.log(`[yutai] detail error (${symbol}): ${(e as Error).message}`);
+    return null;
+  }
+
+  // minkabu の優待内容は <dt>優待内容</dt><dd>...</dd> または <th>優待内容</th><td>...</td> の形式
+  const patterns = [
+    /<dt[^>]*>優待内容<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/,
+    /<th[^>]*>優待内容<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      const text = match[1]
+        .replace(/<[^>]+>/g, ' ') // HTMLタグを除去
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (text.length > 0) {
+        return text.length > YUTAI_DETAIL_MAX_LEN
+          ? text.slice(0, YUTAI_DETAIL_MAX_LEN - 1) + '…'
+          : text;
+      }
+    }
+  }
+
+  return null;
 }
