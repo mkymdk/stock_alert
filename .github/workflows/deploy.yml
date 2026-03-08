@@ -1,0 +1,74 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        id: check
+        env:
+          CLASPRC: ${{ secrets.CLASPRC }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          if [ -z "$CLASPRC" ] || [ -z "$CLASP_JSON" ]; then
+            echo "Secrets CLASPRC / CLASP_JSON are not configured — skipping deploy"
+            echo "configured=false" >> $GITHUB_OUTPUT
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm install
+
+      - name: Set up clasp credentials
+        if: steps.check.outputs.configured == 'true'
+        env:
+          CLASPRC: ${{ secrets.CLASPRC }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          echo "$CLASPRC" > ~/.clasprc.json
+          echo "$CLASP_JSON" > .clasp.json
+
+      - name: Refresh access token
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          python3 - <<'EOF'
+          import json, urllib.request, urllib.parse, time, os
+          with open(os.path.expanduser('~/.clasprc.json')) as f:
+              rc = json.load(f)
+          data = urllib.parse.urlencode({
+              'grant_type': 'refresh_token',
+              'refresh_token': rc['token']['refresh_token'],
+              'client_id': rc['oauth2ClientSettings']['clientId'],
+              'client_secret': rc['oauth2ClientSettings']['clientSecret'],
+          }).encode()
+          with urllib.request.urlopen(
+              urllib.request.Request('https://oauth2.googleapis.com/token', data=data)
+          ) as r:
+              resp = json.load(r)
+          rc['token']['access_token'] = resp['access_token']
+          rc['token']['expiry_date'] = int(time.time() * 1000) + resp['expires_in'] * 1000
+          with open(os.path.expanduser('~/.clasprc.json'), 'w') as f:
+              json.dump(rc, f)
+          EOF
+
+      - name: Push to Google Apps Script
+        if: steps.check.outputs.configured == 'true'
+        run: echo "y" | npm run push
