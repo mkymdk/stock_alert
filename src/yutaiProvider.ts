@@ -8,7 +8,8 @@
  * 再スクレイピングする（週次トリガー時は通常キャッシュが有効）。
  */
 
-const YUTAI_BASE_URL        = 'https://minkabu.jp/yutai';
+/** 株主優待銘柄一覧の JSON API（Accept: application/json ヘッダーが必要） */
+const YUTAI_SEARCH_URL      = 'https://minkabu.jp/stock/search?yutai_exist=1&page=';
 const YUTAI_CACHE_KEY       = 'YUTAI_SYMBOLS';
 const YUTAI_DETAIL_MAX_LEN  = 120; // Slack メッセージ内の優待内容の最大文字数
 
@@ -52,20 +53,25 @@ function fetchYutaiSymbols(): string[] {
 }
 
 /**
- * minkabu.jp の株主優待ページを最大 YUTAI_MAX_PAGES ページ分スクレイピングし、
- * 4桁の銘柄コードを重複なく返す。
+ * minkabu の株主優待銘柄検索 JSON API から全銘柄コードを取得する。
+ * 1ページ50件。初回レスポンスの pagination.totalPages まで自動的にループする。
  */
 function scrapeYutaiSymbols(): string[] {
-  const symbolSet = new Set<string>();
+  const symbols: string[] = [];
+  let totalPages = 1;
 
-  for (let page = 1; page <= YUTAI_MAX_PAGES; page++) {
-    const url = `${YUTAI_BASE_URL}?page=${page}`;
-    let html: string;
+  for (let page = 1; page <= Math.min(totalPages, YUTAI_MAX_PAGES); page++) {
+    const url = `${YUTAI_SEARCH_URL}${page}`;
 
+    let data: { items: Array<{ financialItemCode?: string }>; pagination: { totalPages: number } };
     try {
       const resp = UrlFetchApp.fetch(url, {
         muteHttpExceptions: true,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
       });
 
       if (resp.getResponseCode() !== 200) {
@@ -73,30 +79,29 @@ function scrapeYutaiSymbols(): string[] {
         break;
       }
 
-      html = resp.getContentText();
+      data = JSON.parse(resp.getContentText());
     } catch (e) {
-      Logger.log(`[yutai] page ${page} fetch error: ${(e as Error).message}`);
+      Logger.log(`[yutai] page ${page} error: ${(e as Error).message}`);
       break;
     }
 
-    const before = symbolSet.size;
-    const regex  = /href="\/stock\/(\d{4})["\/]/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(html)) !== null) {
-      symbolSet.add(match[1]);
+    // 初回レスポンスで総ページ数を確定
+    if (page === 1) {
+      totalPages = data.pagination?.totalPages ?? 1;
+      Logger.log(`[yutai] 総ページ数: ${totalPages} (推定 ${totalPages * 50} 銘柄)`);
     }
 
-    Logger.log(`[yutai] page ${page}: +${symbolSet.size - before}銘柄 (累計 ${symbolSet.size})`);
+    const items = data.items ?? [];
+    for (const item of items) {
+      if (item.financialItemCode) symbols.push(item.financialItemCode);
+    }
 
-    // ページに新しいコードがなければ最終ページ
-    if (symbolSet.size === before && page > 1) break;
-
+    Logger.log(`[yutai] page ${page}/${totalPages}: +${items.length}銘柄 (累計 ${symbols.length})`);
     Utilities.sleep(500);
   }
 
-  Logger.log(`[yutai] スクレイピング完了: ${symbolSet.size}銘柄`);
-  return Array.from(symbolSet);
+  Logger.log(`[yutai] 取得完了: ${symbols.length}銘柄`);
+  return symbols;
 }
 
 /**

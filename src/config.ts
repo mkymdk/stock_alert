@@ -20,8 +20,8 @@ const DIVIDEND_YIELD_MIN_PCT = 2.0;
 /** PER 上限 — これを超える銘柄は除外 */
 const PER_MAX = 35;
 
-/** minkabu 株主優待ページのスクレイピング最大ページ数 */
-const YUTAI_MAX_PAGES = 30;
+/** minkabu 株主優待 JSON API の最大取得ページ数（1ページ50件、現在34ページ≒1674銘柄） */
+const YUTAI_MAX_PAGES = 50;
 
 /** Yahoo Finance バッチクォートの1リクエストあたり銘柄数 */
 const BATCH_QUOTE_SIZE = 50;
