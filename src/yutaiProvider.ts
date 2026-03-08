@@ -105,6 +105,8 @@ function scrapeYutaiSymbols(): string[] {
  * 取得できない場合は null を返す（呼び出し元で「株主優待あり」等にフォールバック）。
  */
 function fetchYutaiDetail(symbol: string): string | null {
+  Utilities.sleep(500); // サーバー負荷軽減（複数銘柄アラート時も連続リクエストを防ぐ）
+
   const url = `https://minkabu.jp/stock/${symbol}/yutai`;
   let html: string;
 
