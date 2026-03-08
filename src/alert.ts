@@ -1,54 +1,47 @@
 /**
- * alert.ts — Drop detection logic
+ * alert.ts — 株価下落チェック
  *
- * For each stock, this module:
- *   1. Selects the appropriate data provider based on the stock's market
- *   2. Fetches normalised price data
- *   3. Fires a Slack alert if the drop condition is met
+ * スクリーニング済み銘柄（配当・PER・株主優待フィルタ通過済み）に対して
+ * 過去5年高値からの下落率を確認し、閾値を超えた場合に Slack へ通知する。
  *
- * No deduplication state is maintained — the trigger runs once a week
- * (every Friday), so the weekly cadence itself prevents notification spam.
- * If a stock remains below the threshold the following Friday, a fresh
- * alert is intentionally sent again.
+ * 重複防止なし — 週次トリガーのため、条件を満たす限り毎週通知する。
  */
 
 /**
- * Returns the appropriate StockProvider for the given market.
- * Add new providers here as additional markets are supported.
+ * 市場に応じた StockProvider を返す。
+ * 将来的に市場ごとに異なるプロバイダーへ切り替える場合はここを更新。
  */
 function getProvider(_market: Market): StockProvider {
-  // Currently YahooFinanceProvider handles all supported markets.
-  // Future example:
-  //   if (market === 'LSE') return new AlphaVantageProvider();
   return new YahooFinanceProvider();
 }
 
 /**
- * Checks a single stock and sends a Slack alert if the drop condition is met.
- *
- * @param stock  Stock descriptor from STOCKS in config.ts
+ * スクリーニング済み銘柄の過去5年高値からの下落率を確認し、
+ * DROP_THRESHOLD_PCT% 以上下落していれば Slack に通知する。
  */
-function checkAndAlert(stock: StockConfig): void {
-  Logger.log(`[alert] Checking ${stock.name} (${stock.symbol})`);
+function checkAndAlert(stock: ScreenedStock): void {
+  Logger.log(`[alert] チェック中: ${stock.name} (${stock.symbol})`);
 
   const provider = getProvider(stock.market);
-  const data     = provider.fetchPriceData(stock, LOOKBACK_DAYS);
+  const data     = provider.fetchPriceData(stock, 0);
 
   if (!data) {
-    Logger.log(`[alert] Skipping ${stock.symbol} — data fetch failed`);
+    Logger.log(`[alert] ${stock.symbol} — データ取得失敗、スキップ`);
     return;
   }
 
   Logger.log(
-    `[alert] ${stock.symbol} | current=${data.currentPrice.toFixed(0)}` +
-    ` | high=${data.highPrice.toFixed(0)} | drop=${data.dropPct.toFixed(2)}%`,
+    `[alert] ${stock.symbol}` +
+    ` | 現在値=${data.currentPrice.toFixed(0)}` +
+    ` | 5年高値=${data.highPrice.toFixed(0)}` +
+    ` | 下落率=${data.dropPct.toFixed(2)}%`,
   );
 
   if (data.dropPct > -DROP_THRESHOLD_PCT) {
-    Logger.log(`[alert] ${stock.symbol} — drop below threshold (${data.dropPct.toFixed(1)}%), no alert`);
+    Logger.log(`[alert] ${stock.symbol} — 下落率 ${data.dropPct.toFixed(1)}% が閾値未満、スキップ`);
     return;
   }
 
-  Logger.log(`[alert] ${stock.symbol} — threshold exceeded, sending alert`);
+  Logger.log(`[alert] ${stock.symbol} — 閾値超過、Slack 送信`);
   sendSlackAlert(stock, data);
 }

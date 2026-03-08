@@ -1,34 +1,30 @@
 /**
- * config.ts — Static configuration for the stock alert system
+ * config.ts — スクリーニング条件の設定
  *
- * Edit this file to add/remove stocks or adjust thresholds.
- * Sensitive values (SLACK_WEBHOOK_URL) are stored in GAS Script Properties,
- * not here, because this file is committed to version control.
+ * 銘柄はハードコードせず、実行時に以下の条件で動的に選択される:
+ *   1. 株主優待あり（minkabu.jp 掲載）
+ *   2. 配当利回り >= DIVIDEND_YIELD_MIN_PCT
+ *   3. PER <= PER_MAX
+ *   4. 過去5年高値から DROP_THRESHOLD_PCT% 以上下落
+ *
+ * 機密値（SLACK_WEBHOOK_URL）は GAS Script Properties に格納し、
+ * このファイルには含めない。
  */
 
-/** List of stocks to monitor */
-const STOCKS: StockConfig[] = [
-  { symbol: '7203', name: 'トヨタ自動車',         market: 'TSE' },
-  { symbol: '6758', name: 'ソニーグループ',        market: 'TSE' },
-  { symbol: '9984', name: 'ソフトバンクグループ',  market: 'TSE' },
-  { symbol: '6861', name: 'キーエンス',            market: 'TSE' },
-  { symbol: '4063', name: '信越化学工業',          market: 'TSE' },
-  { symbol: '8306', name: '三菱UFJフィナンシャル・グループ', market: 'TSE' },
-  // To add a US stock in the future:
-  // { symbol: 'AAPL', name: 'Apple Inc.',  market: 'NASDAQ' },
-];
+/** アラート閾値: 過去5年高値からこの%以上下落した場合に通知 */
+const DROP_THRESHOLD_PCT = 25;
 
-/**
- * Number of calendar days to look back when finding the recent high.
- * Yahoo Finance data is fetched for 6 months (range=6mo) and then
- * filtered to this window, so values between 30 and 180 work without
- * touching the provider code.
- */
-const LOOKBACK_DAYS = 90;
+/** 最低配当利回り (%) — これを下回る銘柄は除外 */
+const DIVIDEND_YIELD_MIN_PCT = 2.0;
 
-/**
- * Percentage drop from the recent high that triggers an alert.
- * Use a positive number — the comparison is applied as a negative threshold.
- * Example: 20 → alert when the stock is 20% or more below its recent high.
- */
-const DROP_THRESHOLD_PCT = 20;
+/** PER 上限 — これを超える銘柄は除外 */
+const PER_MAX = 35;
+
+/** minkabu 株主優待ページのスクレイピング最大ページ数 */
+const YUTAI_MAX_PAGES = 30;
+
+/** Yahoo Finance バッチクォートの1リクエストあたり銘柄数 */
+const BATCH_QUOTE_SIZE = 50;
+
+/** 株主優待リストのキャッシュ有効期間 (ms) */
+const YUTAI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7日

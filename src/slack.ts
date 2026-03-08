@@ -22,7 +22,7 @@ const MARKET_LABEL: Record<Market, string> = {
  *
  * @returns true if the message was delivered successfully, false otherwise
  */
-function sendSlackAlert(stock: StockConfig, data: PriceData): boolean {
+function sendSlackAlert(stock: ScreenedStock, data: PriceData): boolean {
   const webhookUrl = PropertiesService.getScriptProperties()
     .getProperty('SLACK_WEBHOOK_URL');
 
@@ -56,19 +56,19 @@ function sendSlackAlert(stock: StockConfig, data: PriceData): boolean {
   return true;
 }
 
-function buildMessage(stock: StockConfig, data: PriceData): string {
-  const marketLabel  = MARKET_LABEL[stock.market];
-  const dropStr      = data.dropPct.toFixed(1) + '%';
-  const currentStr   = formatPrice(data.currentPrice, stock.market);
-  const highStr      = formatPrice(data.highPrice,    stock.market);
+function buildMessage(stock: ScreenedStock, data: PriceData): string {
+  const marketLabel = MARKET_LABEL[stock.market];
+  const currentStr  = formatPrice(data.currentPrice, stock.market);
+  const highStr     = formatPrice(data.highPrice,    stock.market);
 
   return [
     ':rotating_light: *株価下落アラート*',
     `銘柄: ${stock.name} (${stock.symbol}) [${marketLabel}]`,
     `現在値: ${currentStr}`,
-    `直近${LOOKBACK_DAYS}日の高値: ${highStr} (${data.highDate} 達成)`,
-    `下落率: ${dropStr}`,
-    `（監視条件: 高値から${DROP_THRESHOLD_PCT}%以上の下落）`,
+    `過去5年高値: ${highStr} (${data.highDate} 達成)`,
+    `下落率: ${data.dropPct.toFixed(1)}%`,
+    `配当利回り: ${stock.dividendYieldPct.toFixed(2)}%  |  PER: ${stock.per.toFixed(1)}倍`,
+    `（スクリーニング条件: 配当${DIVIDEND_YIELD_MIN_PCT}%以上 / PER${PER_MAX}倍以下 / 株主優待あり / 高値から${DROP_THRESHOLD_PCT}%以上の下落）`,
   ].join('\n');
 }
 

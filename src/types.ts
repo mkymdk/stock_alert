@@ -18,6 +18,24 @@ interface StockConfig {
   market: Market;
 }
 
+/** Stock that has passed all fundamental screening filters (配当・PER・株主優待) */
+interface ScreenedStock extends StockConfig {
+  /** Trailing annual dividend yield (%) e.g. 2.5 */
+  dividendYieldPct: number;
+  /** Trailing P/E ratio e.g. 12.5 */
+  per: number;
+}
+
+/** Fundamental metrics from the Yahoo Finance v7 batch quote API */
+interface FundamentalData {
+  /** Company name (longName or shortName) */
+  name: string;
+  /** Trailing P/E ratio, or null if unavailable */
+  per: number | null;
+  /** Trailing annual dividend yield (%), or null if unavailable */
+  dividendYieldPct: number | null;
+}
+
 /** Normalised price data returned by any StockProvider */
 interface PriceData {
   /** Most recent closing price */

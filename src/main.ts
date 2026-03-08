@@ -9,23 +9,26 @@
  */
 
 /**
- * Checks every configured stock and sends Slack alerts where warranted.
- * Called automatically by the weekly time-based trigger (every Friday 16:00 JST).
+ * 株主優待・配当・PER の条件を満たす銘柄を動的にスクリーニングし、
+ * 過去5年高値から DROP_THRESHOLD_PCT% 以上下落した銘柄を Slack に通知する。
+ * 毎週金曜 16:00 JST のトリガーから自動実行される。
  */
 function checkAllStocks(): void {
   const now = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss zzz');
-  Logger.log(`=== Stock alert run started: ${now} ===`);
+  Logger.log(`=== 株価アラート 実行開始: ${now} ===`);
 
-  for (const stock of STOCKS) {
+  const stocks = getScreenedStocks();
+  Logger.log(`[main] スクリーニング通過銘柄数: ${stocks.length}`);
+
+  for (const stock of stocks) {
     try {
       checkAndAlert(stock);
     } catch (e) {
-      // Isolate errors per stock so one bad ticker doesn't abort the entire run
-      Logger.log(`[main] Uncaught error for ${stock.symbol}: ${(e as Error).message}`);
+      Logger.log(`[main] ${stock.symbol} で未捕捉エラー: ${(e as Error).message}`);
     }
   }
 
-  Logger.log('=== Stock alert run finished ===');
+  Logger.log('=== 株価アラート 実行完了 ===');
 }
 
 /**
