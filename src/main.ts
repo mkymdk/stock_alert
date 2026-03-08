@@ -34,19 +34,17 @@ function checkAllStocks(): void {
  * Run this function ONCE from the GAS editor after the initial deployment:
  *   GAS Editor → select "setupTrigger" from the dropdown → click Run
  *
- * The function is idempotent — any existing trigger for checkAllStocks is
- * removed before the new one is created, so calling it multiple times is safe.
+ * The function is idempotent — ALL existing project triggers are deleted before
+ * new ones are created, so calling it multiple times is safe.
  */
 function setupTrigger(): void {
   const fn = 'checkAllStocks';
 
-  // Remove existing triggers to avoid duplicates
-  ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === fn)
-    .forEach(t => {
-      ScriptApp.deleteTrigger(t);
-      Logger.log(`[setup] Deleted existing trigger for ${fn}`);
-    });
+  // Delete ALL project triggers to start fresh
+  ScriptApp.getProjectTriggers().forEach(t => {
+    Logger.log(`[setup] Deleted trigger for ${t.getHandlerFunction()}`);
+    ScriptApp.deleteTrigger(t);
+  });
 
   // Create a new weekly trigger: every Friday at 16:00 JST
   // (appsscript.json sets timeZone=Asia/Tokyo, so atHour(16) is JST)

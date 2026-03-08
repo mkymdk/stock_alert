@@ -95,7 +95,7 @@ config.ts (STOCKS[]) → main.ts:checkAllStocks()
 - **No local compilation**: clasp handles TS→JS transpilation; `tsconfig.json` uses `skipLibCheck: true` to avoid `@types/node` / `undici-types` conflicts.
 - **GAS scope**: All `src/*.ts` files are concatenated into a single GAS script namespace — no ES module `import`/`export`. Types and classes are shared globally across files.
 - **Secret management**: `SLACK_WEBHOOK_URL` must be set in GAS Script Properties (not in code). Retrieved at runtime via `PropertiesService.getScriptProperties().getProperty('SLACK_WEBHOOK_URL')`.
-- **Trigger**: Registered once by running `setupTrigger()` in GAS editor. Fires every Friday 16:00 JST (`appsscript.json` sets `timeZone: Asia/Tokyo`).
+- **Trigger**: Registered by running `setupTrigger()` in GAS editor. Fires every Friday 16:00 JST (`appsscript.json` sets `timeZone: Asia/Tokyo`). `setupTrigger()` deletes **ALL** existing project triggers before creating new ones — safe to run multiple times and correct for multi-function trigger scenarios.
 - **Provider pattern**: `StockProvider` interface in `src/providers/base.ts`; `getProvider()` in `alert.ts` selects the implementation. Currently only `YahooFinanceProvider` exists.
 
 ### Market / ticker mapping
